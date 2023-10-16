@@ -1,0 +1,252 @@
+---
+title: "Covid19 Analysis"
+author: "Sindhu T P"
+date: "2023-09-11"
+output: 
+  html_document : default
+  pdf_document  : default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+### Importing essential packages
+```{r import packages}
+
+# Load the packages
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(reshape2)
+library(plotly)
+```
+## Covid-19 Data Import
+This data set is imported from the following URL. 
+```{r data import}
+url_in <- "https://github.com/CSSEGISandData/COVID-19/blob/master/csse_covid_19_data/csse_covid_19_time_series/"
+files <- c("time_series_covid19_confirmed_global.csv","time_series_covid19_deaths_global.csv","time_series_covid19_confirmed_US.csv","time_series_covid19_deaths_US.csv")
+url <- str_c(url_in,files)
+```
+### Reading data 
+```{r read data}
+global_cases <- read_csv("D:/Sindhu/CUB/MSDS_CUB/R all/time_series_covid19_confirmed_global.csv")
+global_deaths <- read_csv("D:/Sindhu/CUB/MSDS_CUB/R all/time_series_covid19_deaths_global.csv")
+
+```
+### Data Preprocessing
+```{r pivoting}
+#Pivoting date columns to make it a single column
+global_cases <- pivot_longer(global_cases,cols = -c('Province/State', 'Country/Region','Lat','Long'),names_to = 'Date',values_to = 'Cases')%>%select(-c('Lat','Long'))
+
+global_deaths <- pivot_longer(global_deaths,cols= -c('Province/State', 'Country/Region','Lat','Long'),names_to = 'Date',values_to = 'Deaths') %>% select(-c('Lat','Long'))
+
+```
+
+```{r merge}
+#Joining global cases and deaths 
+global <- global_cases %>% full_join(global_deaths) %>% rename(Province_State = `Province/State`, Country_Region = `Country/Region`)
+global <- global %>% filter(Cases>0)
+
+```
+### Population data import
+```{r population import}
+#Since the global data set does not have the "population" column, we are importing it from the below mentioned URL and file. Later, this will be joined to the global table.
+
+#Importing population data from the below url
+url_for_population <- "https://github.com/CSSEGISandData/COVID-19/blob/master/csse_covid_19_data/UID_ISO_FIPS_LookUp_Table.csv"
+```
+
+### Reading data from the csv file
+```{r read popu data}
+popu <- read_csv("D:/Sindhu/CUB/MSDS_CUB/R all/population.csv")
+popu <- popu %>% select(-c('UID','iso2','iso3','code3','FIPS','Admin2','Lat','Long_'))
+```
+```{r joining global and population}
+#joining global dataframe and population dataset
+global <- global %>% unite("Combined_Key", c(Province_State,Country_Region),na.rm = TRUE,remove = FALSE, sep = ", ")
+
+global <- global %>% left_join(popu , by = c('Province_State','Country_Region'))
+
+global <- global %>% select(-c(Combined_Key.y))
+
+global <- global %>% mutate(Date = mdy(Date))
+
+```
+
+### Summarizing the data by date 
+```{r globalsummary data}
+global_totl <- global %>% group_by(Country_Region,Date) %>% summarise(cases = max(Cases),deaths = max(Deaths),population = sum(Population))%>%mutate(death_per_mill = deaths*1000000/population)%>%mutate(cases_per_mill = cases*1000000/population)%>% select(c(Country_Region,Date,cases,deaths,death_per_mill,cases_per_mill,population))%>% ungroup()
+
+print(global_totl,n=50)
+```
+```{r}
+global_totl <- global_totl %>% drop_na()
+
+
+```
+
+
+### Summarizing the data by country_region
+```{r global summary data by country}
+global_totl_by_country <- global %>% group_by(Country_Region) %>% summarise(cases = max(Cases),deaths = max(Deaths),population = max(Population))%>%mutate(death_per_mil = deaths*1000000/population)%>%
+  mutate(cases_per_mil = cases*1000000/population)%>%select(c(Country_Region,cases,deaths,death_per_mil,cases_per_mil,population))%>% ungroup()
+
+print(global_totl_by_country)
+```
+```{r}
+global_totl_by_country<- global_totl_by_country %>% drop_na()
+```
+
+
+### Visualizing the data - Cases and Deaths by year
+```{r data viz1}
+global_totl %>%filter(cases>0)%>% ggplot(aes(x= Date,y=cases))+
+    geom_line(aes(color="cases"))+
+     
+    geom_line(aes(y=deaths,color="deaths"))+
+   
+    scale_y_log10()+
+    theme(legend.position="bottom",axis.text.x=element_text(angle=90))+
+    labs(title="Covid19 Around The World", y=NULL)
+```
+
+##### Inference:
+By looking at the above visualization we can observe that cases and deaths leveled off after 2022. To take a closer look at the data, we need to look at new_cases and new_deaths.
+
+### Visualizing the data - Cases and Deaths by Country
+```{r data India viz}
+# Summarize cases and deaths by country
+df <- global_totl_by_country %>% select(c(Country_Region,cases,deaths))
+
+# Melt the data frame
+df_melted <- melt(df, id.vars = "Country_Region")
+
+# Create the plot
+p <- plot_ly(df_melted, x = ~Country_Region, y = ~value, color = ~variable, type = "bar") %>% plotly::layout(title = "Covid19 by Country", yaxis = list(rangemode = "nonnegative"),xaxis = list(rangeslider = list()), barmode = "group",width=800,height=400,bargap=0.2)
+
+# Rotate the x-axis labels
+p$xaxis$categoryorder <- "category ascending"
+p$xaxis.tickangle <- 90
+
+# Display the plot
+p
+
+```
+
+
+### Analyzing the data to look for new cases and new deaths
+```{r data analysis}
+global_totl <- global_totl %>% mutate(New_Cases = cases - lag(cases), New_Deaths = deaths -lag(deaths))
+global_totl %>% select(c(Country_Region,New_Cases,New_Deaths,everything()))
+```
+### Visualizing the data for India(New_Cases and New_Deaths by date)
+```{r Everyday cases for India}
+df_india_new<- global_totl %>% filter(Country_Region=='India') %>% filter(Date>2020-01-30)%>% select(c(Date,New_Cases,New_Deaths))
+# Melt the data frame
+df_melted_new <- melt(df_india_new, id.vars = "Date")
+
+# Create the plot
+p <- plot_ly(df_melted_new, x = ~Date, y = ~value, color = ~variable, type = "bar",colors = c("green", "red")) %>%
+  layout(title = "Covid19 by Date", yaxis = list(type = "linear", rangemode = "nonnegative",rangeslider = list()), xaxis = list(rangeslider = list()), barmode = "group", width=800,height=400,bargap=0.5)
+
+# Rotate the x-axis labels
+p$xaxis$categoryorder <- "category ascending"
+p$xaxis.tickangle <- 90
+
+# Add a slider for the y-axis
+p$layout$updatemenus <- list(
+  list(
+    type = "buttons",
+    showactive = FALSE,
+    buttons = list(
+      list(
+        label = "New Cases",
+        method = "update",
+        args = list(list(y = list(df_melted_new$New_Cases)), list(title = "Covid19 by Date - New Cases"))
+      ),
+      list(
+        label = "New Deaths",
+        method = "update",
+        args = list(list(y = list(df_melted_new$New_Deaths)), list(title = "Covid19 by Date - New Deaths"))
+      )
+    )
+  )
+)
+
+# Display the plot
+p
+```
+
+
+
+
+
+
+
+
+
+### Visualizing the data - New cases and new deaths for India by year
+```{r data viz India}
+data <- global_totl%>% filter(Country_Region == "India") %>% filter(year(Date) %in% c(2022,2023))
+
+pl1 <- data %>% ggplot(aes(x= Date,y=New_Cases))+
+    geom_line(aes(color="New_Cases"))+
+    geom_point(aes(color="New_Cases"))+ 
+        theme(legend.position="bottom",axis.text.x=element_text(angle=90))+
+    labs(title="Covid19 in India - New_Cases", y=NULL)
+
+pl2 <- data %>% ggplot(aes(x= Date,y=New_Deaths))+
+    geom_line(aes(color="New_Deaths"))+
+    geom_point(aes(color="New_Deaths"))+ 
+        theme(legend.position="bottom",axis.text.x=element_text(angle=90))+
+    labs(title="Covid19 in India - New_Deaths", y=NULL)
+
+grid.arrange(pl1,pl2,ncol=2, widths=c(4,4))
+
+```
+
+
+
+
+### Analyzing the data further to look for min amd max deaths and cases
+
+```{r min data}
+global_totl %>% filter(cases > 0 & deaths >0) %>% slice_min(n=10,order_by = death_per_mill) %>% select(death_per_mill,everything())
+```
+```{r max data}
+global_totl %>% filter(cases > 0 & deaths >0 & population >0) %>% slice_max(n=10,order_by = death_per_mill) %>% select(death_per_mill,everything())
+```
+
+## Modeling the Data
+```{r data model}
+global_totl <- global_totl %>% filter(cases >0 & population >0)
+modl <- lm(data = global_totl,formula = deaths ~ cases)
+summary(modl)
+cor_coef <- cor(x = global_totl$cases, y = global_totl$deaths, use = "everything",method = c("pearson", "kendall", "spearman"))
+print(paste("correlation coefficient for cases and deaths is ",cor_coef)) 
+
+```
+##### Inference:
+The correlation coefficient for cases and deaths is 0.885711219050053. This indicates that there is a positive correlation between cases per million people and death per million people, with a correlation coefficient of 0.885711219050053. This means that as cases per million people increase, death per million people also tends to increase.
+
+### Predictions by the model
+```{r prediction}
+global_totl <- global_totl %>% mutate(pred_deaths = predict(modl)) %>% filter(Country_Region=='India') %>% select(c(cases,deaths,pred_deaths,Date))
+global_totl
+```
+### Visualizing the data - Cases and Deaths by year for India
+```{r data viz}
+global_totl %>% ggplot()+
+    geom_point(aes(x=Date,y=deaths),color="blue")+ 
+    geom_point(aes(x=Date,y=pred_deaths),color="red")+
+    scale_y_log10()+
+    theme(legend.position="bottom",axis.text.x=element_text(angle=90))+
+    labs(title="Covid19 deaths prediction", y=NULL)
+```
+
+
+
+##### Inference:
+Although the above model does a good job in predicting the number of deaths after 2021, the initial accent does not resemble the actual data and hence further modifications to the model is required to account for unknown variance.
+
