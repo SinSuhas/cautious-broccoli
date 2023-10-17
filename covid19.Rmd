@@ -1,7 +1,7 @@
 ---
 title: "Covid19 Analysis"
 author: "Sindhu T P"
-date: "2023-09-11"
+date: "2023-10-17"
 output: 
   html_document : default
   pdf_document  : default
@@ -22,7 +22,7 @@ library(reshape2)
 library(plotly)
 ```
 ## Covid-19 Data Import
-This data set is imported from the following URL. 
+This data set can be imported from the URL mentioned in the code below. The URL is a github repo of the Johns Hopkins University. There has been some permission changes done to the repo, as a result importing data directly form the URL was not possible. The data was downloaded directly from the repo to my local machine as presented in the 'Reading Data' section of this report.
 ```{r data import}
 url_in <- "https://github.com/CSSEGISandData/COVID-19/blob/master/csse_covid_19_data/csse_covid_19_time_series/"
 files <- c("time_series_covid19_confirmed_global.csv","time_series_covid19_deaths_global.csv","time_series_covid19_confirmed_US.csv","time_series_covid19_deaths_US.csv")
@@ -72,11 +72,12 @@ global <- global %>% select(-c(Combined_Key.y))
 
 global <- global %>% mutate(Date = mdy(Date))
 
+
 ```
 
 ### Summarizing the data by date 
 ```{r globalsummary data}
-global_totl <- global %>% group_by(Country_Region,Date) %>% summarise(cases = max(Cases),deaths = max(Deaths),population = sum(Population))%>%mutate(death_per_mill = deaths*1000000/population)%>%mutate(cases_per_mill = cases*1000000/population)%>% select(c(Country_Region,Date,cases,deaths,death_per_mill,cases_per_mill,population))%>% ungroup()
+global_totl <- global %>% group_by(Country_Region,Date) %>% summarise(cases = max(Cases),deaths = max(Deaths),population = sum(Population))%>%mutate(death_per_mill = deaths*1000000/population)%>%mutate(cases_per_mill = cases*1000000/population)%>% select(c(Date,cases,deaths,death_per_mill,cases_per_mill,population))%>% ungroup()
 
 print(global_totl,n=50)
 ```
@@ -96,23 +97,22 @@ print(global_totl_by_country)
 ```
 ```{r}
 global_totl_by_country<- global_totl_by_country %>% drop_na()
+global_cases <- global_cases %>%mutate(Date=mdy(Date))
 ```
 
 
-### Visualizing the data - Cases and Deaths by year
+### Visualizing the data - Cases by year
 ```{r data viz1}
-global_totl %>%filter(cases>0)%>% ggplot(aes(x= Date,y=cases))+
-    geom_line(aes(color="cases"))+
-     
-    geom_line(aes(y=deaths,color="deaths"))+
-   
-    scale_y_log10()+
+
+p<-global_totl %>%ggplot(aes(x= year(Date),y=cases))+
+    geom_point(aes(color="cases"))+
+    geom_line()+
     theme(legend.position="bottom",axis.text.x=element_text(angle=90))+
-    labs(title="Covid19 Around The World", y=NULL)
+    labs(title="Covid19 Cases Around The World", y=NULL)
+
+ggplotly(p, tooltip = c("x", "y"))
 ```
 
-##### Inference:
-By looking at the above visualization we can observe that cases and deaths leveled off after 2022. To take a closer look at the data, we need to look at new_cases and new_deaths.
 
 ### Visualizing the data - Cases and Deaths by Country
 ```{r data India viz}
@@ -247,6 +247,19 @@ global_totl %>% ggplot()+
 
 
 
-##### Inference:
+##### Conclusion:
 Although the above model does a good job in predicting the number of deaths after 2021, the initial accent does not resemble the actual data and hence further modifications to the model is required to account for unknown variance.
+
+From the above data visualizations and analysis performed on this data set we can infer following conclusions:
+
+1. When it comes to Covid19 around the world, the overall covid19 cases reached 20M by 2020 mid, and by the year 2023, there was a drastic increase in the number of cases(100M cases). 
+
+2. New cases for India: May 2021 has the highest confirmed covid cases in India, followed by second highest peak in Jan 2022.
+
+3. New deaths for India: The year 2022 has seen a huge number of new deaths in India
+
+4. US has recorded the highest overall covid19 cases compared to other countries.
+
+
+
 
