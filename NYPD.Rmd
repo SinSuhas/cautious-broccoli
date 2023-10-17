@@ -1,0 +1,154 @@
+---
+title: "Analysis of NYPD Historic Shooting Incidents"
+author: "Sindhu T P"
+date: "2023-10-17"
+output:
+  html_document: default
+  pdf_document: default
+---
+```{r , echo=FALSE, include=FALSE}
+library(magrittr)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(gridExtra)
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Redirecting to the URL where the data resides
+```{r url}
+url_in <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+```
+## Trasfering data from csv to tibble 
+```{r input}
+shootings <- read.csv(url_in)
+head(shootings)
+```
+# Summary of the data
+
+```{r}
+summary(shootings)
+```
+# Feature Selection
+```{r}
+shootings <- shootings %>%select(-c("X_COORD_CD","Y_COORD_CD","Latitude","Longitude","Lon_Lat","LOCATION_DESC","LOC_OF_OCCUR_DESC","BORO","JURISDICTION_CODE","PRECINCT"))
+
+```
+
+
+```{r}
+summary(shootings)
+```
+```{r preprocesing}
+#"PERP_AGE_GROUP" has 9344 null values
+#"PERP_SEX" has 9310 null values
+#"PERP_RACE" has 9310 null values
+
+shootings$OCCUR_DATE <- as.Date(shootings$OCCUR_DATE,"%m/%d/%y")
+unique(shootings$PERP_AGE_GROUP)
+shootings$PERP_AGE_GROUP[shootings$PERP_AGE_GROUP %in% c(NA,"UNKNOWN","(null)" )] <- NA
+shootings$VIC_AGE_GROUP[shootings$VIC_AGE_GROUP %in% c(NA,"UNKNOWN")] <- NA
+shootings$PERP_SEX[shootings$PERP_SEX %in% c(NA,"UNKNOWN")] <- NA
+shootings$PERP_RACE[shootings$PERP_RACE %in% c(NA,"UNKNOWN","(null)")] <- NA
+shootings$VIC_SEX[shootings$VIC_SEX %in% c("UNKNOWN")] <- NA
+ shootings$PERP_AGE_GROUP[shootings$PERP_AGE_GROUP %in% c("224", "1020", "940")] <- NA
+ shootings$VIC_AGE_GROUP[shootings$VIC_AGE_GROUP %in% c("1022", NA)] <- NA
+shootings$PERP_AGE_GROUP <- as.factor(shootings$PERP_AGE_GROUP)
+shootings$PERP_SEX <- as.factor(shootings$PERP_SEX)
+shootings$PERP_RACE <- as.factor(shootings$PERP_RACE)
+shootings$VIC_SEX <- as.factor(shootings$VIC_SEX)
+shootings$VIC_RACE <- as.factor(shootings$VIC_RACE)
+shootings$VIC_AGE_GROUP <- as.factor(shootings$VIC_AGE_GROUP)
+
+```
+```{r}
+summary(shootings)
+```
+```{r,echo=FALSE}
+if(FALSE){
+"If there is missing data in categorical variables, it could be a case where no input was recorded, NAs in such variables can be considered as a separate category so that we do not lose out on valuable information.
+  "}
+```
+
+
+# Visualizing the Data
+
+Time Series Analysis
+
+```{r}
+#Number of Shootings each month
+monthly_counts <- shootings %>% mutate(month = floor_date(OCCUR_DATE,"month")) %>% count(month)
+
+ggplot(data=monthly_counts, aes(x=month,y=n))+geom_line()+ labs(x="Month",y="Number of shootings",title="Monthly shooting counts")
+```
+```{r,echo=FALSE}
+if(FALSE){
+  "Inference:
+Since there is an increased activity between Apr to Oct, we can suspect a correlation between good weather(spring/summer) and number of shooting incidents."
+}
+```
+
+Inference:
+Since there is an increased activity between Apr to Oct, we can suspect a correlation between good weather(spring/summer) and number of shooting incidents.
+
+# Demographic analysis
+```{r demographic,fig.width=14, fig.height=12}
+#Perpetrators Age Group
+plot1 <- ggplot(data=shootings %>% count(PERP_AGE_GROUP) , aes(x=PERP_AGE_GROUP,y=n))+geom_col(aes(color=PERP_AGE_GROUP))+theme(axis.text.x = element_text(angle =90))+theme_grey(base_size = 15) 
+
+#Victim's Age Group
+plot2 <- ggplot(data=shootings %>% count(VIC_AGE_GROUP) , aes(x=VIC_AGE_GROUP,y=n))+geom_col(aes(color=VIC_AGE_GROUP))+theme(axis.text.x = element_text(angle =90))+theme_grey(base_size = 15) 
+
+grid.arrange(plot1, plot2, ncol = 2)
+```
+
+Inference:
+From the Age demographics we can see that the probability of Perpetrator being 18-44 yrs is more compared to any other age group and the probability of target age being 18-44 yrs is considerably high.
+
+
+
+```{r}
+
+#Number of Shootings by hour
+
+shootings$OCCUR_TIME <- hms(shootings$OCCUR_TIME)
+shootings$hour <- hour(shootings$OCCUR_TIME)
+counts <- shootings %>% count(hour)
+
+ggplot(data=counts, aes(x=hour,y=n))+geom_line()+ labs(x="Hour of the Day",y="Number of shootings",title="Hourly shooting counts")
+
+```
+
+
+Inference:
+Clearly there is a correlation between time of the day and number of shooting incidents. Number of shooing incidents tend to peak in the late evenings and mid-nigth hours. Incidents are considerably less during early morning and morning hours.
+
+# Conclusion:
+Age group, time of the day and season has a huge impact on the number of shooting incidents and it is necessary to be informed about these details. 
+
+Potential action items to consider based on above analysis:
+
+1. Since good weather(spring/summer) gives perpetrators greater access to resources and people, it is advisable to deploy increased patrolling during such months to be on the look out for perpetrators in the areas which are more susceptible to shooting incidents.
+
+2. From the Age demographics we can see that the probability of Perpetrator being 18-44 yrs is more compared to any other age group and the probability of target age being 18-44 yrs is also considerably high. Increased caution should be exercised if the suspect is between 18-44yrs as it is more likely that the suspect could commit crime.
+
+3. Since the number of shooing incidents tend to peak in the late evenings and mid-nigth hours and incidents are considerably less during early morning and morning hours, it is advisable to deploy increased patrolling during such times to be on the look out for perpetrators in the areas which are more susceptible to shooting incidents.
+
+Future Scope:
+
+1. Geo-spatial analysis can be done to know which areas are more vulnerable to such incidents in NYC.
+2. Based on the weather conditions, age of perpetrators and time of the day, new algorithms can be developed to predict a potential crime in vulnerable areas screened by geo-spatial analysis. This can pinpoint suspects and take responsible action before the crime occurs.
+
+Possible Biases:
+
+1. Race demographics can give a biased view of certain communities and certain people and could give rise to false positive suspects. This can pose an immediate threat to people living in vulnerable areas and people from certain communities. A through investigation can reveal actual details and will not put innocent people under the radar.
+
+2. Shooting incidents are more probable during late evenings,nights and early morning hours. This doesn't mean that there are no threats during the other times of the day. Same holds for different times of the year. Any kind of suspicious activity during even hours should also be looked at with extreme caution.
+
+
+
+
+
