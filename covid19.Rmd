@@ -260,6 +260,20 @@ From the above data visualizations and analysis performed on this data set we ca
 
 4. US has recorded the highest overall covid19 cases compared to other countries.
 
+Possible Biases:
+
+1. Testing Bias: The number of confirmed cases is heavily dependent on the testing rate in each country. Countries with more extensive testing will report more cases, which doesn’t necessarily mean they have a higher prevalence of the disease.
+
+2. Reporting Bias: Different countries have different criteria for reporting COVID-19 cases and deaths. Some countries might only report hospital cases, while others might also include cases and deaths in care homes or the wider community.
+
+3. Population Bias: Comparisons between countries can be misleading if not adjusted for population size. A country with a larger population will likely have more cases than a smaller one.
+
+4. Healthcare System Bias: The quality and capacity of healthcare systems can affect the number of reported deaths. Countries with better healthcare systems might have lower death rates because they can provide better care for the sick.
+
+5. Time Lag Bias: There is often a delay between when someone gets infected, when they get tested and confirmed positive, and when their case gets reported in the data. This can lead to underestimation of recent cases.
+
+6.Geographical Bias: The spread of COVID-19 is not uniform within a country. Some regions might be more affected than others, but when we analyze country-level data, this regional variation is lost.
+
 
 
 
